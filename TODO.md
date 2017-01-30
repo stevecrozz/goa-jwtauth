@@ -1,3 +1,7 @@
+
+Customized Behavior
+-------------------
+
 1) How will users customize the token that extracts the serialized JWT from the request header?
   - "Authorization: JWT" vs "Authorization: Bearer" vs ...
 
