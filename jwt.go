@@ -58,10 +58,16 @@ header, any of the following would be acceptable:
 Error handling
 --------------
 
-If the token is missing from a request, jwt passes the request but leaves the
+If the security scheme is misconfigured (e.g. unsupported location) then
+jwt fails all requests.
 
-If a token is not trustworthy for any reason (expired, bad signature,
-not-yet-valid), t
+If a request is missing the auth header, jwt passes the request but fails to
+populate the context with a JWT, i.e. the request is unauthenticated.
+
+If the header contains a well-formed token that is expired, not-yet-trustable,
+or has some other trust issue, jwt fails the request.
+
+If the header contains a malformed token, jwt fails the request.
 
 */
 package jwt
