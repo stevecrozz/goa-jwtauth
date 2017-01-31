@@ -69,6 +69,16 @@ or has some other trust issue, jwt fails the request.
 
 If the header contains a malformed token, jwt fails the request.
 
+Testing
+-------
+
+Call TestMiddleware() to create a middleware initialized to trust a static key,
+e.g. for unit tests.
+
+Call TestToken() to create a valid token signed by the same key.
+
+NEVER USE THESE FUNCTIONS in production; they are intended only for testing!
+
 */
 package jwt
 
