@@ -1,4 +1,4 @@
-package jwt_test
+package jwtauth_test
 
 import (
 	"github.com/goadesign/goa"

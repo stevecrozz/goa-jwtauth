@@ -80,7 +80,7 @@ Call TestToken() to create a valid token signed by the same key.
 NEVER USE THESE FUNCTIONS in production; they are intended only for testing!
 
 */
-package jwt
+package jwtauth
 
 import "golang.org/x/net/context"
 
