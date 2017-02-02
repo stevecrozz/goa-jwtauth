@@ -5,7 +5,7 @@ import (
 	"github.com/goadesign/goa"
 )
 
-const testKey = "https://github.com/xeger/goa-middleware-jwt#test"
+const testKey = "https://github.com/xeger/goa-jwtauth#test"
 
 // TestMiddleware returns a middleware that uses a static HMAC key and is
 // suitable for unit tests.

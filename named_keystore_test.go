@@ -3,7 +3,7 @@ package jwtauth_test
 import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	jwt "github.com/xeger/goa-middleware-jwt"
+	jwt "github.com/xeger/goa-jwtauth"
 )
 
 var _ = Describe("NamedKeystore", func() {

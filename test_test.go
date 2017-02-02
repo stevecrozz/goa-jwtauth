@@ -4,7 +4,7 @@ import (
 	"github.com/goadesign/goa"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	jwt "github.com/xeger/goa-middleware-jwt"
+	jwt "github.com/xeger/goa-jwtauth"
 )
 
 var _ = Describe("TestMiddleware()", func() {

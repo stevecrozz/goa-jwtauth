@@ -10,7 +10,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	jwt "github.com/xeger/goa-middleware-jwt"
+	jwt "github.com/xeger/goa-jwtauth"
 
 	"testing"
 
@@ -19,7 +19,7 @@ import (
 
 func TestJWTSuite(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "goa-middleware-jwt")
+	RunSpecs(t, "goa-jwtauth")
 }
 
 var hmacKey1 = []byte("I like tacos")
