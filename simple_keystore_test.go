@@ -6,8 +6,8 @@ import (
 	jwt "github.com/xeger/goa-middleware-jwt"
 )
 
-var _ = Describe("SingleKeystore", func() {
-	store := &jwt.SingleKeystore{hmacKey1}
+var _ = Describe("SimpleKeystore", func() {
+	store := &jwt.SimpleKeystore{hmacKey1}
 
 	Context("Trust()", func() {
 		It("accepts the single key", func() {

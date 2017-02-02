@@ -3,10 +3,8 @@ package jwt_test
 import (
 	"crypto/ecdsa"
 	"crypto/rsa"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"time"
 
 	"golang.org/x/net/context"
@@ -18,7 +16,7 @@ import (
 	jwt "github.com/xeger/goa-middleware-jwt"
 )
 
-var _ = Describe("JWT middleware", func() {
+var _ = Describe("Authentication()", func() {
 	Context("error handling", func() {
 		var resp *httptest.ResponseRecorder
 		var req *http.Request
@@ -36,9 +34,9 @@ var _ = Describe("JWT middleware", func() {
 		It("rejects unknown issuers", func() {
 			scheme := &goa.JWTSecurity{In: goa.LocHeader, Name: "Authorization"}
 			store := &jwt.NamedKeystore{}
-			middleware := jwt.NewWithKeystore(scheme, store)
+			middleware := jwt.AuthenticationWithKeystore(scheme, store)
 
-			setBearerHeader(req, makeToken("suspicious-issuer", hmacKey1))
+			setBearerHeader(req, makeToken("suspicious-issuer", "", hmacKey1))
 
 			result := middleware(handler)(context.Background(), resp, req)
 
@@ -48,7 +46,7 @@ var _ = Describe("JWT middleware", func() {
 		It("fails when JWTSecurity.Location is unsupported", func() {
 			scheme := &goa.JWTSecurity{In: goa.LocQuery, Name: "jwt"}
 			store := &jwt.NamedKeystore{}
-			middleware := jwt.NewWithKeystore(scheme, store)
+			middleware := jwt.AuthenticationWithKeystore(scheme, store)
 
 			result := middleware(handler)(context.Background(), resp, req)
 
@@ -57,7 +55,7 @@ var _ = Describe("JWT middleware", func() {
 
 		It("rejects malformed issuers", func() {
 			scheme := &goa.JWTSecurity{In: goa.LocHeader, Name: "Authorization"}
-			middleware := jwt.New(scheme, hmacKey1)
+			middleware := jwt.Authentication(scheme, hmacKey1)
 			claims := jwtpkg.MapClaims{}
 			claims["iss"] = 7
 			token := jwtpkg.NewWithClaims(jwtpkg.SigningMethodHS256, &claims)
@@ -118,7 +116,7 @@ func testShared(trusted, untrusted jwt.Key) {
 			panic("Unsupported key type for tests")
 		}
 
-		middleware = jwt.New(scheme, key)
+		middleware = jwt.Authentication(scheme, key)
 
 		token = nil
 	})
@@ -130,7 +128,7 @@ func testShared(trusted, untrusted jwt.Key) {
 	})
 
 	It("accepts valid tokens", func() {
-		setBearerHeader(req, makeToken("_", trusted))
+		setBearerHeader(req, makeToken("_", "", trusted))
 
 		result := middleware(handler)(context.Background(), resp, req)
 
@@ -139,7 +137,7 @@ func testShared(trusted, untrusted jwt.Key) {
 	})
 
 	It("rejects modified tokens", func() {
-		bad := modifyToken(makeToken("_", trusted))
+		bad := modifyToken(makeToken("_", "", trusted))
 		setBearerHeader(req, bad)
 
 		result := middleware(handler)(context.Background(), resp, req)
@@ -149,7 +147,7 @@ func testShared(trusted, untrusted jwt.Key) {
 	})
 
 	It("rejects untrusted tokens", func() {
-		setBearerHeader(req, makeToken("_", untrusted))
+		setBearerHeader(req, makeToken("_", "_", untrusted))
 
 		result := middleware(handler)(context.Background(), resp, req)
 
@@ -160,7 +158,7 @@ func testShared(trusted, untrusted jwt.Key) {
 	It("rejects expired tokens", func() {
 		iat := time.Now().Add(-time.Hour)
 		exp := iat.Add(time.Minute)
-		bad := makeTokenWithTimestamps("_", trusted, iat, iat, exp)
+		bad := makeTokenWithTimestamps("_", "_", trusted, iat, iat, exp)
 		setBearerHeader(req, bad)
 
 		result := middleware(handler)(context.Background(), resp, req)
@@ -173,7 +171,7 @@ func testShared(trusted, untrusted jwt.Key) {
 		iat := time.Now()
 		nbf := iat.Add(time.Minute)
 		exp := nbf.Add(time.Minute)
-		bad := makeTokenWithTimestamps("_", trusted, iat, nbf, exp)
+		bad := makeTokenWithTimestamps("_", "_", trusted, iat, nbf, exp)
 		setBearerHeader(req, bad)
 
 		result := middleware(handler)(context.Background(), resp, req)
@@ -181,46 +179,4 @@ func testShared(trusted, untrusted jwt.Key) {
 		Ω(result).Should(HaveOccurred())
 		Ω(token).Should(BeNil())
 	})
-}
-
-func makeToken(issuer string, key jwt.Key) string {
-	now := time.Now()
-	return makeTokenWithTimestamps(issuer, key, now, now, now.Add(time.Minute))
-}
-
-func makeTokenWithTimestamps(issuer string, key jwt.Key, iat, nbf, exp time.Time) string {
-	claims := jwtpkg.StandardClaims{}
-	claims.Issuer = issuer
-	claims.IssuedAt = iat.Unix()
-	claims.NotBefore = nbf.Unix()
-	claims.ExpiresAt = exp.Unix()
-
-	var token *jwtpkg.Token
-	switch key.(type) {
-	case []byte:
-		token = jwtpkg.NewWithClaims(jwtpkg.SigningMethodHS256, &claims)
-	case *rsa.PrivateKey:
-		token = jwtpkg.NewWithClaims(jwtpkg.SigningMethodRS256, &claims)
-	case *ecdsa.PrivateKey:
-		token = jwtpkg.NewWithClaims(jwtpkg.SigningMethodES256, &claims)
-	default:
-		panic("Unsupported key type for tests")
-	}
-
-	s, err := token.SignedString(key)
-	if err != nil {
-		panic(err)
-	}
-
-	return s
-}
-
-func modifyToken(token string) string {
-	// modify a single byte
-	return strings.Replace(token, token[25:26], string(byte(token[25])+1), 1)
-}
-
-func setBearerHeader(req *http.Request, token string) {
-	header := fmt.Sprintf("Bearer %s", token)
-	req.Header.Set("Authorization", header)
 }

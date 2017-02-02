@@ -1,8 +1,16 @@
 package jwt_test
 
 import (
+	"crypto/ecdsa"
+	"crypto/rsa"
+	"fmt"
+	"net/http"
+	"strings"
+	"time"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	jwt "github.com/xeger/goa-middleware-jwt"
 
 	"testing"
 
@@ -85,3 +93,47 @@ MHcCAQEEIKQ7EyFGaYMuFpMLnqK+mBnT9CrWOqzVxsF8wBlGrTq/oAoGCCqGSM49
 AwEHoUQDQgAE8IX3mOtLvBpvrylaRjFpadqGrirXh9dkjJfM/t1dnLu5qPhybMIY
 tEr3Xs8vYp2wyaSTVKsyj9y+t344T5Bhdw==
 -----END EC PRIVATE KEY-----`))
+
+func makeToken(issuer, subject string, key jwt.Key, scopes ...string) string {
+	now := time.Now()
+	return makeTokenWithTimestamps(issuer, subject, key, now, now, now.Add(time.Minute), scopes...)
+}
+
+func makeTokenWithTimestamps(issuer, subject string, key jwt.Key, iat, nbf, exp time.Time, scopes ...string) string {
+	claims := jwtpkg.MapClaims{}
+	claims["iss"] = issuer
+	claims["iat"] = iat.Unix()
+	claims["nbf"] = nbf.Unix()
+	claims["exp"] = exp.Unix()
+	claims["sub"] = subject
+	claims["scopes"] = scopes
+
+	var token *jwtpkg.Token
+	switch key.(type) {
+	case []byte:
+		token = jwtpkg.NewWithClaims(jwtpkg.SigningMethodHS256, &claims)
+	case *rsa.PrivateKey:
+		token = jwtpkg.NewWithClaims(jwtpkg.SigningMethodRS256, &claims)
+	case *ecdsa.PrivateKey:
+		token = jwtpkg.NewWithClaims(jwtpkg.SigningMethodES256, &claims)
+	default:
+		panic("Unsupported key type for tests")
+	}
+
+	s, err := token.SignedString(key)
+	if err != nil {
+		panic(err)
+	}
+
+	return s
+}
+
+func modifyToken(token string) string {
+	// modify a single byte
+	return strings.Replace(token, token[25:26], string(byte(token[25])+1), 1)
+}
+
+func setBearerHeader(req *http.Request, token string) {
+	header := fmt.Sprintf("Bearer %s", token)
+	req.Header.Set("Authorization", header)
+}

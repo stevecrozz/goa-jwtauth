@@ -12,7 +12,7 @@ As a trivial example, to setup JWT security with a static HMAC key using an
 OAuth-compatible header transport:
 
 		scheme := &goa.JWTSecurity{In: goa.LocHeader, Name: "Authorization"}
-		middleware := jwt.New(scheme, "This is my HMAC key)
+		middleware := jwt.Authentication(scheme, "This is my HMAC key)
 
 Issuers and keys
 ----------------
@@ -32,7 +32,7 @@ As an example:
 		store.Trust("us.acme.com", "secret HMAC key for US servers")
 		store.Trust("eu.acme.com", "secret HMAC key for EU servers")
 
-		middleware := jwt.NewWithKeystore(scheme, store)
+		middleware := jwt.AuthenticationWithKeystore(scheme, store)
 
 Using a NamedKeystore, you can grant or revoke trust at any time, even while
 the application is running, and your changes will take effect on the next
@@ -82,18 +82,12 @@ NEVER USE THESE FUNCTIONS in production; they are intended only for testing!
 */
 package jwt
 
-import (
-	"fmt"
-	"net/http"
-	"strings"
-
-	"golang.org/x/net/context"
-
-	jwt "github.com/dgrijalva/jwt-go"
-	"github.com/goadesign/goa"
-)
+import "golang.org/x/net/context"
 
 type (
+	// Claims is a collection of claims extracted from a JWT.
+	Claims map[string]interface{}
+
 	// Key represents a cryptographic key using an unspecified algorithm, which
 	// can be used to verify the signatures of JSON Web Tokens.
 	//
@@ -115,72 +109,19 @@ type (
 		// Get returns the key associated with the named issuer.
 		Get(issuer string) Key
 	}
+
+	// Adapter allows applications to customize the authorization scheme
+	// in order to account for different usages of JWT claims and different ways
+	// of interpreting scope.
+	Adapter interface {
+		// GetPrincipal returns the authentication principal specified in the
+		// claims, or the empty string if no suitable claim is present.
+		GetPrincipal(context.Context, Claims) (string, error)
+		// GetScopes returns a list of scopes specified in the claims, or nil if
+		// no scopes are present.
+		GetScopes(context.Context, Claims) ([]string, error)
+		// Authorize returns nil if the principal is authorized to perform a
+		// request, or an error the principal is forbidden.
+		Authorize(ctx context.Context, principal interface{}, tokenScopes, requiredScopes []string) error
+	}
 )
-
-// New returns a middleware that is configured to trust a single key.
-func New(scheme *goa.JWTSecurity, key Key) goa.Middleware {
-	store := &SingleKeystore{Key: key}
-	return NewWithKeystore(scheme, store)
-}
-
-// New returns a middleware that uses store as its keystore.
-func NewWithKeystore(scheme *goa.JWTSecurity, store Keystore) goa.Middleware {
-	return func(nextHandler goa.Handler) goa.Handler {
-		return func(ctx context.Context, rw http.ResponseWriter, req *http.Request) error {
-			token, err := parseToken(scheme, store, req)
-			if err != nil {
-				return err
-			}
-
-			ctx = WithJWT(ctx, token)
-
-			return nextHandler(ctx, rw, req)
-		}
-	}
-}
-
-func parseToken(scheme *goa.JWTSecurity, store Keystore, req *http.Request) (*jwt.Token, error) {
-	if scheme.In != goa.LocHeader {
-		return nil, fmt.Errorf("Unsupported goa.JWTSecurity.In '%s' (expected %s)", scheme.In, goa.LocHeader)
-	}
-
-	token := extractToken(req.Header.Get(scheme.Name))
-	if token == "" {
-		return nil, nil
-	}
-
-	return jwt.Parse(token, func(token *jwt.Token) (interface{}, error) {
-		iss, err := identifyIssuer(token)
-		if err != nil {
-			return nil, err
-		}
-		key := store.Get(iss)
-		if key == nil {
-			return nil, fmt.Errorf("Untrusted issuer '%s'", iss)
-		}
-		return key, nil
-	})
-}
-
-func extractToken(header string) string {
-	bits := strings.SplitN(header, " ", 2)
-	if len(bits) == 1 {
-		return bits[0]
-	}
-	return bits[1]
-}
-
-func identifyIssuer(token *jwt.Token) (string, error) {
-	switch claims := token.Claims.(type) {
-	case jwt.MapClaims:
-		iss, ok := claims["iss"].(string)
-		if ok {
-			return iss, nil
-		}
-		return "", fmt.Errorf("Unsupported issuer type %T; expected string", claims["iss"])
-	case *jwt.StandardClaims:
-		return claims.Issuer, nil
-	default:
-		return "", fmt.Errorf("Unsupported JWT claims type %T", claims)
-	}
-}

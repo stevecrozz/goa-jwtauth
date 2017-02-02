@@ -10,7 +10,7 @@ const testKey = "https://github.com/xeger/goa-middleware-jwt#test"
 // TestMiddleware returns a middleware that uses a static HMAC key and is
 // suitable for unit tests.
 func TestMiddleware(scheme *goa.JWTSecurity) goa.Middleware {
-	return New(scheme, []byte(testKey))
+	return Authentication(scheme, []byte(testKey))
 }
 
 // TestToken creates a JWT with the specified claims and signs it using
