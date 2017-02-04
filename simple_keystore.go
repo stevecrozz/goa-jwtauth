@@ -16,7 +16,7 @@ type (
 
 func (sk *SimpleKeystore) Trust(issuer string, key Key) error {
 	if !reflect.DeepEqual(key, sk.Key) {
-		return fmt.Errorf("SimpleKeystore cannot trust additional keys")
+		return fmt.Errorf("cannot trust additional keys; call RevokeTrust first")
 	}
 	return nil
 }

@@ -5,11 +5,13 @@ import (
 	"crypto/rsa"
 	"fmt"
 	"net/http"
+	"reflect"
 	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/types"
 	jwt "github.com/xeger/goa-jwtauth"
 
 	"testing"
@@ -136,4 +138,33 @@ func modifyToken(token string) string {
 func setBearerHeader(req *http.Request, token string) {
 	header := fmt.Sprintf("Bearer %s", token)
 	req.Header.Set("Authorization", header)
+}
+
+func HaveResponseStatus(expected interface{}) types.GomegaMatcher {
+	return &statusMatcher{
+		expected: expected,
+	}
+}
+
+type statusMatcher struct {
+	expected interface{}
+}
+
+func (matcher *statusMatcher) Match(actual interface{}) (success bool, err error) {
+	response, ok := actual.(interface {
+		ResponseStatus() int
+	})
+	if !ok {
+		return false, fmt.Errorf("HaveResponseStatus expects a type with a method\n\tResponseStatus() int\nbut got\n\t%#v", actual)
+	}
+	match := reflect.DeepEqual(response.ResponseStatus(), matcher.expected)
+	return match, nil
+}
+
+func (matcher *statusMatcher) FailureMessage(actual interface{}) (message string) {
+	return fmt.Sprintf("Expected\n\t%#v\nto have ResponseStatus\n\t%#v", actual, matcher.expected)
+}
+
+func (matcher *statusMatcher) NegatedFailureMessage(actual interface{}) (message string) {
+	return fmt.Sprintf("Expected\n\t%#v\nnot to contain the JSON representation of\n\t%#v", actual, matcher.expected)
 }

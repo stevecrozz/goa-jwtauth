@@ -1,24 +1,20 @@
 package jwtauth
 
-import (
-	"golang.org/x/net/context"
-
-	jwt "github.com/dgrijalva/jwt-go"
-)
+import "golang.org/x/net/context"
 
 type contextKey int
 
 const (
-	jwtKey contextKey = iota + 1
+	claimsKey contextKey = iota + 1
 )
 
-// WithJWT creates a child context containing the given JWT.
-func WithJWT(ctx context.Context, t *jwt.Token) context.Context {
-	return context.WithValue(ctx, jwtKey, t)
+// WithClaims creates a child context containing the given claims.
+func WithClaims(ctx context.Context, claims Claims) context.Context {
+	return context.WithValue(ctx, claimsKey, claims)
 }
 
-// ContextJWT retrieves the JWT token from a `context` that went through our security middleware.
-func ContextJWT(ctx context.Context) *jwt.Token {
-	token, _ := ctx.Value(jwtKey).(*jwt.Token)
-	return token
+// ContextClaims retrieves the JWT claims associated with the request.
+func ContextClaims(ctx context.Context) Claims {
+	claims, _ := ctx.Value(claimsKey).(Claims)
+	return claims
 }

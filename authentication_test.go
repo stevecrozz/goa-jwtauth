@@ -13,49 +13,52 @@ import (
 	"github.com/goadesign/goa"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	jwt "github.com/xeger/goa-jwtauth"
+	"github.com/xeger/goa-jwtauth"
 )
 
-var _ = Describe("Authentication()", func() {
+var _ = Describe("Authentication", func() {
 	Context("error handling", func() {
+		var stack goa.Handler
 		var resp *httptest.ResponseRecorder
 		var req *http.Request
-
-		var handler goa.Handler
 
 		BeforeEach(func() {
 			resp = httptest.NewRecorder()
 			req, _ = http.NewRequest("GET", "http://example.com/", nil)
-			handler = func(ctx context.Context, w http.ResponseWriter, r *http.Request) error {
+			stack = func(ctx context.Context, w http.ResponseWriter, r *http.Request) error {
 				return nil
 			}
+
+			scheme := &goa.JWTSecurity{In: goa.LocHeader, Name: "Authorization"}
+			middleware := jwtauth.New(scheme, hmacKey1)
+			stack = middleware(stack)
 		})
 
 		It("rejects unknown issuers", func() {
 			scheme := &goa.JWTSecurity{In: goa.LocHeader, Name: "Authorization"}
-			store := &jwt.NamedKeystore{}
-			middleware := jwt.AuthenticationWithKeystore(scheme, store)
+			store := &jwtauth.NamedKeystore{}
+			middleware := jwtauth.New(scheme, store)
 
 			setBearerHeader(req, makeToken("suspicious-issuer", "", hmacKey1))
 
-			result := middleware(handler)(context.Background(), resp, req)
+			result := middleware(stack)(context.Background(), resp, req)
 
-			Ω(result).Should(HaveOccurred())
+			Ω(result).Should(HaveResponseStatus(401))
 		})
 
 		It("fails when JWTSecurity.Location is unsupported", func() {
 			scheme := &goa.JWTSecurity{In: goa.LocQuery, Name: "jwt"}
-			store := &jwt.NamedKeystore{}
-			middleware := jwt.AuthenticationWithKeystore(scheme, store)
+			store := &jwtauth.NamedKeystore{}
+			middleware := jwtauth.New(scheme, store)
 
-			result := middleware(handler)(context.Background(), resp, req)
+			result := middleware(stack)(context.Background(), resp, req)
 
-			Ω(result).Should(HaveOccurred())
+			Ω(result).Should(HaveResponseStatus(500))
 		})
 
-		It("rejects malformed issuers", func() {
+		It("converts issuers to string", func() {
 			scheme := &goa.JWTSecurity{In: goa.LocHeader, Name: "Authorization"}
-			middleware := jwt.Authentication(scheme, hmacKey1)
+			middleware := jwtauth.New(scheme, hmacKey1)
 			claims := jwtpkg.MapClaims{}
 			claims["iss"] = 7
 			token := jwtpkg.NewWithClaims(jwtpkg.SigningMethodHS256, &claims)
@@ -65,9 +68,9 @@ var _ = Describe("Authentication()", func() {
 			}
 			setBearerHeader(req, s)
 
-			result := middleware(handler)(context.Background(), resp, req)
+			result := middleware(stack)(context.Background(), resp, req)
 
-			Ω(result).Should(HaveOccurred())
+			Ω(result).ShouldNot(HaveOccurred())
 		})
 	})
 
@@ -86,73 +89,75 @@ var _ = Describe("Authentication()", func() {
 
 // TestShared defines test cases that are repeated for every supported key
 // type.
-func testShared(trusted, untrusted jwt.Key) {
+func testShared(trusted, untrusted jwtauth.Key) {
 	scheme := &goa.JWTSecurity{In: goa.LocHeader, Name: "Authorization"}
 
 	var resp *httptest.ResponseRecorder
 	var req *http.Request
 
-	var handler goa.Handler
+	var stack goa.Handler
 	var middleware goa.Middleware
-	var token *jwtpkg.Token
+	var claims jwtauth.Claims
 
 	BeforeEach(func() {
 		resp = httptest.NewRecorder()
 		req, _ = http.NewRequest("GET", "http://example.com/", nil)
-		handler = func(ctx context.Context, w http.ResponseWriter, r *http.Request) error {
-			token = jwt.ContextJWT(ctx)
+		stack = func(ctx context.Context, w http.ResponseWriter, r *http.Request) error {
+			claims = jwtauth.ContextClaims(ctx)
 			return nil
 		}
 
-		var key jwt.Key
+		var key jwtauth.Key
 		switch tk := trusted.(type) {
 		case []byte:
 			key = trusted
 		case *rsa.PrivateKey:
-			key = jwt.Key(&tk.PublicKey)
+			key = jwtauth.Key(&tk.PublicKey)
 		case *ecdsa.PrivateKey:
-			key = jwt.Key(&tk.PublicKey)
+			key = jwtauth.Key(&tk.PublicKey)
 		default:
 			panic("Unsupported key type for tests")
 		}
 
-		middleware = jwt.Authentication(scheme, key)
+		middleware = jwtauth.New(scheme, key)
+	})
 
-		token = nil
+	AfterEach(func() {
+		claims = nil
 	})
 
 	It("accepts requests that lack tokens", func() {
-		result := middleware(handler)(context.Background(), resp, req)
+		result := middleware(stack)(context.Background(), resp, req)
 		Ω(result).ShouldNot(HaveOccurred())
-		Ω(token).Should(BeNil())
+		Ω(claims).Should(HaveLen(0))
 	})
 
 	It("accepts valid tokens", func() {
-		setBearerHeader(req, makeToken("_", "", trusted))
+		setBearerHeader(req, makeToken("alice", "bob", trusted))
 
-		result := middleware(handler)(context.Background(), resp, req)
+		result := middleware(stack)(context.Background(), resp, req)
 
 		Ω(result).ShouldNot(HaveOccurred())
-		Ω(token).ShouldNot(BeNil())
+		Ω(claims.String("sub")).Should(Equal("bob"))
 	})
 
 	It("rejects modified tokens", func() {
-		bad := modifyToken(makeToken("_", "", trusted))
+		bad := modifyToken(makeToken("alice", "bob", trusted))
 		setBearerHeader(req, bad)
 
-		result := middleware(handler)(context.Background(), resp, req)
+		result := middleware(stack)(context.Background(), resp, req)
 
-		Ω(result).Should(HaveOccurred())
-		Ω(token).Should(BeNil())
+		Ω(result).Should(HaveResponseStatus(401))
+		Ω(claims).Should(HaveLen(0))
 	})
 
 	It("rejects untrusted tokens", func() {
-		setBearerHeader(req, makeToken("_", "_", untrusted))
+		setBearerHeader(req, makeToken("_", "alice", untrusted))
 
-		result := middleware(handler)(context.Background(), resp, req)
+		result := middleware(stack)(context.Background(), resp, req)
 
-		Ω(result).Should(HaveOccurred())
-		Ω(token).Should(BeNil())
+		Ω(result).Should(HaveResponseStatus(401))
+		Ω(claims).Should(HaveLen(0))
 	})
 
 	It("rejects expired tokens", func() {
@@ -161,10 +166,10 @@ func testShared(trusted, untrusted jwt.Key) {
 		bad := makeTokenWithTimestamps("_", "_", trusted, iat, iat, exp)
 		setBearerHeader(req, bad)
 
-		result := middleware(handler)(context.Background(), resp, req)
+		result := middleware(stack)(context.Background(), resp, req)
 
-		Ω(result).Should(HaveOccurred())
-		Ω(token).Should(BeNil())
+		Ω(result).Should(HaveResponseStatus(401))
+		Ω(claims).Should(HaveLen(0))
 	})
 
 	It("rejects not-yet-valid tokens", func() {
@@ -174,9 +179,9 @@ func testShared(trusted, untrusted jwt.Key) {
 		bad := makeTokenWithTimestamps("_", "_", trusted, iat, nbf, exp)
 		setBearerHeader(req, bad)
 
-		result := middleware(handler)(context.Background(), resp, req)
+		result := middleware(stack)(context.Background(), resp, req)
 
-		Ω(result).Should(HaveOccurred())
-		Ω(token).Should(BeNil())
+		Ω(result).Should(HaveResponseStatus(401))
+		Ω(claims).Should(HaveLen(0))
 	})
 }

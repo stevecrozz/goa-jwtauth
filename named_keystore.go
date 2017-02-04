@@ -43,7 +43,7 @@ func (nk *NamedKeystore) Trust(issuer string, key Key) error {
 	}
 
 	if old, ok := nk.keys[issuer]; ok && !reflect.DeepEqual(old, key) {
-		return fmt.Errorf("Already added a key for issuer '%s'; call RemoveKey first", issuer)
+		return fmt.Errorf("already added a key for issuer '%s'; call RemoveKey first", issuer)
 	}
 
 	// For convenience, turn private keys into public and strings into bytes.
@@ -58,7 +58,7 @@ func (nk *NamedKeystore) Trust(issuer string, key Key) error {
 	case *rsa.PublicKey, *ecdsa.PublicKey, []byte:
 		nk.keys[issuer] = kt
 	default:
-		return fmt.Errorf("Unsupported key type %T", key)
+		return fmt.Errorf("unsupported key type %T", key)
 	}
 
 	return nil

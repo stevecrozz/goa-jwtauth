@@ -14,7 +14,6 @@ import (
 
 var _ = Describe("Authorization()", func() {
 	var stack goa.Handler
-
 	var resp *httptest.ResponseRecorder
 	var req *http.Request
 
@@ -26,9 +25,8 @@ var _ = Describe("Authorization()", func() {
 		}
 
 		scheme := &goa.JWTSecurity{In: goa.LocHeader, Name: "Authorization"}
-		authentication := jwt.Authentication(scheme, hmacKey1)
-		authorization := jwt.Authorization(scheme, "scopes")
-		stack = authentication(authorization(stack))
+		middleware := jwt.New(scheme, hmacKey1)
+		stack = middleware(stack)
 	})
 
 	Context("given no required scopes", func() {

@@ -2,62 +2,59 @@ package jwtauth
 
 import (
 	"fmt"
-	"net/http"
-
-	"golang.org/x/net/context"
 
 	"github.com/goadesign/goa"
-
-	jwt "github.com/dgrijalva/jwt-go"
+	"golang.org/x/net/context"
 )
 
-// Authorization returns a middleware that authorizes requests
-func Authorization(scheme *goa.JWTSecurity, scopesClaimName string) goa.Middleware {
-	return AuthorizationWithAdapter(scheme, SimpleAdapter{scopesClaimName})
-}
+// ScopesClaim is a Private Claim Name, as stipulated in RFC7519 Section 4.3,
+// that jwtauth uses to store scope information in tokens. If you need to
+// interoperate with third parties w/r/t to token scope, it may be advisable
+// to change this to a Collision-Resistant Claim Name instead.
+var ScopesClaim = "scopes"
 
-// AuthorizationWithAdapter returns a middleware that authorizes requests using
-// the specified Adapter.
-func AuthorizationWithAdapter(scheme *goa.JWTSecurity, adapter Adapter) goa.Middleware {
-	return func(nextHandler goa.Handler) goa.Handler {
-		return func(ctx context.Context, rw http.ResponseWriter, req *http.Request) error {
-			log := goa.ContextLogger(ctx)
-			token := ContextJWT(ctx)
-			requiredScopes := goa.ContextRequiredScopes(ctx)
+// Authorization is the default authorization method. It compares the context's
+// required scopes against a list of scopes that are claimed in the JWT. If
+// the claimed scopes satisfy all required scopes, Authorization passes the
+// request; otherwise, it responds with ErrAuthorizationFailed.
+func Authorization(ctx context.Context, claims Claims) error {
+	reqd := goa.ContextRequiredScopes(ctx)
 
-			if token == nil {
-				if len(requiredScopes) == 0 {
-					return nextHandler(ctx, rw, req)
-				} else {
-					// TODO replace with 403 Forbidden
-					return fmt.Errorf("GO AWAY")
-				}
-			}
+	held := ParseScopes(claims[ScopesClaim])
 
-			var claims Claims
-			switch tc := token.Claims.(type) {
-			case jwt.MapClaims:
-				claims = Claims(tc)
-			default:
-				return fmt.Errorf("Unsupported jwt Claims type %T", tc)
+	for _, r := range reqd {
+		found := false
+		for _, h := range held {
+			found = found || (h == r)
+			if found {
+				break
 			}
-			principal, err := adapter.GetPrincipal(ctx, claims)
-			if err != nil {
-				return err
-			}
-			tokenScopes, err := adapter.GetScopes(ctx, claims)
-			if err != nil {
-				return err
-			}
-			err = adapter.Authorize(ctx, principal, tokenScopes, requiredScopes)
-			if err == nil {
-				return nextHandler(ctx, rw, req)
-			}
-
-			if log != nil {
-				log.Error("jwt.Authorization", "sub", principal, "scopes", tokenScopes, "req", requiredScopes, "err", err)
-			}
-			return err
+		}
+		if !found {
+			return ErrAuthorizationFailed("missing scopes", "required", reqd)
 		}
 	}
+	return nil
+}
+
+// ParseScopes tries to interpret an arbitrary JWT claim as a list of scopes.
+// It accepts a single value or array of values, transforms everything to
+// a string, and returns an array of strings.
+func ParseScopes(claim interface{}) (scopes []string) {
+	slice, _ := claim.([]interface{})
+	if slice == nil && claim != nil {
+		slice = []interface{}{claim}
+	}
+
+	if slice != nil {
+		for _, e := range slice {
+			switch et := e.(type) {
+			case string:
+				scopes = append(scopes, et)
+			default:
+				scopes = append(scopes, fmt.Sprintf("%v", et))
+			}
+		}
+	}
+	return
 }
