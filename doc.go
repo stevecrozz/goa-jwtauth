@@ -6,17 +6,48 @@ or HMAC.
 
 When you setup your goa.Service, install the jwtauth middleware:
 
-		scheme := &goa.JWTSecurity{In: goa.LocHeader, Name: "Authorization"}
-		middleware := jwtauth.New(scheme, "This is my HMAC key")
+    // Assuming your API DSL created a JWT security scheme named "JWT"
+		scheme := app.NewJWTSecurity()
+    secret := []byte("This is my HMAC key")
+    store = jwtauth.SimpleKeystore{secret}
+		middleware := jwtauth.New(scheme, store)
 
 In this example, jwtauth uses a single, static HMAC key and relies
-on the default authentication and authorization behavior. When someone makes
-a request containing a JWT, jwauth verifies that the token contains all of
-the scopes that are required by your action, as determined by goa.ContextRequiredScopes().
-If anything is missing, jwtauth returns 4xx or 5xx error with a detailed message.
+on the default authentication and authorization behavior. Your users can now
+include an authorization token with every request:
+
+    GET /foo
+    Authorization: Bearer <JWT goes here>
+
+When someone makes a request containing a JWT, jwauth verifies that the token
+contains all of the scopes that are required by your action, as determined by
+goa.ContextRequiredScopes(). If anything is missing, jwtauth returns 4xx or 5xx
+error with a detailed message.
 
 
-Custom Behavior
+Multiple Issuers
+
+For real-world applications, it is advisable to register several trusted keys
+so you can perform key rotation on the fly and compartmentalize trust. If you
+initialize the middleware with a NamedKeystore, it uses the value of the
+JWT "iss" (Issuer) claim to select a verification key for each token.
+
+		import jwtgo "github.com/dgrijalva/jwt-go"
+		usKey := jwtgo.ParseRSAPublicFromPEM(ioutil.ReadFile("us.pem))
+		euKey := jwtgo.ParseRSAPublicKeyFromPEM(ioutil.ReadFile("eu.pem))
+
+		store := jwt.NamedKeystore{}
+		store.Trust("us.acme.com", usKey))
+		store.Trust("eu.acme.com", euKey))
+
+		middleware := jwt.New(app.NewJWTSecurity(), store)
+
+Using a NamedKeystore, you can grant or revoke trust at any time, even while
+the application is running, and your changes will take effect on the next
+request.
+
+
+Custom Authorization
 
 To change how jwtauth performs auth, write your own function that matches the
 signature of type AuthorizationFunc, then pass your function to the
@@ -26,7 +57,8 @@ constructor using jwtauth's options DSL:
 			return fmt.Errorf("nobody may do anything!")
 	  }
 
-		middleware := jwtauth.New(scheme, "This is my HMAC key",
+    store := jwt.SimpleKeystore{[]byte("This is my HMAC key")}
+		middleware := jwtauth.New(scheme, store,
 			jwtauth.Authorization(myAuthzFunc)
 		)
 
@@ -43,6 +75,38 @@ to ensure that the user is alive and well:
 			claims := jwtauth.ContextClaims(ctx)
 			http.Get(fmt.Sprintf("http://auth-server?%s", claims.Subject()))
 		}
+
+
+Custom Extraction
+
+You can specialize the logic used to extract a JWT from the request
+by providing the Extraction() option:
+
+    func myExtraction(*goa.JWTSecurity, *http.Request) (string, error) {
+      return "", fmt.Errorf("I hate token1!")
+    }
+
+    store := jwt.SimpleKeystore{[]byte("This is my HMAC key")}
+    middleware := jwtauth.New(scheme, store,
+      jwtauth.Extraction(myExtraction)
+    )
+
+The default extraction behavior, described below, should be sufficient for
+almost any use case.
+
+DefaultExtraction supports only security schemes that use goa.LocHeader;
+JWTs in the query string, or in other locations, are not supported.
+
+Although jwtauth uses the header name specified by the goa.JWTSecurity definition
+that is used to initialize it, some assumptions are made about the format of
+the header value. It must contain a base64-encoded JWT, which may be prefixed
+by a single-word qualifier. Assuming the security scheme uses the Authorization
+header, any of the following would be acceptable:
+
+		Authorization: <base64_token>
+		Authorization: Bearer <base64_token>
+		Authorization: JWT <base64_token>
+		Authorization: AnyOtherWordHere <base64_token>
 
 
 Token Management
@@ -70,45 +134,6 @@ trusted, it has expired, or is not yet valid.
 ErrAuthorizationFailed (403): the token is well-formed and valid, but the
 authentication principal did not satisfy all of the scopes required to call
 the requested goa action.
-
-
-Multiple Issuers
-
-For real-world applications, it is advisable to register several trusted keys
-so you can perform key rotation on the fly and compartmentalize trust. If you
-initialize the middleware with a NamedKeystore, it uses the value of the
-JWT "iss" (Issuer) claim to select a verification key for each token.
-
-		import jwtgo "github.com/dgrijalva/jwt-go"
-		usKey := jwtgo.ParseRSAPublicFromPEM(ioutil.ReadFile("us.pem))
-		euKey := jwtgo.ParseRSAPublicKeyFromPEM(ioutil.ReadFile("eu.pem))
-
-		store := jwt.NamedKeystore{}
-		store.Trust("us.acme.com", usKey))
-		store.Trust("eu.acme.com", euKey))
-
-		middleware := jwt.New(app.NewJWTSecurity(), store)
-
-Using a NamedKeystore, you can grant or revoke trust at any time, even while
-the application is running, and your changes will take effect on the next
-request.
-
-
-JWT Location and Format
-
-Package jwtauth supports security schemes that use goa.LocHeader; JWTs in
-the query string, or in other locations, are not supported.
-
-Although jwtauth uses the header name specified by the goa.JWTSecurity definition
-that is used to initialize it, some assumptions are made about the format of
-the header value. It must contain a base64-encoded JWT, which may be prefixed
-by a single-word qualifier. Assuming the security scheme uses the Authorization
-header, any of the following would be acceptable:
-
-		Authorization: <base64_token>
-		Authorization: Bearer <base64_token>
-		Authorization: JWT <base64_token>
-		Authorization: AnyOtherWordHere <base64_token>
 
 
 Testing

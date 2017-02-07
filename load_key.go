@@ -10,23 +10,23 @@ import (
 	"regexp"
 )
 
-var pemBlock = regexp.MustCompile("^---+ *BEGIN")
+var pemBlock = regexp.MustCompile("^[\r\n]*---+ *BEGIN")
 
-// Load is a helper function that transforms raw key material into a properly-
+// LoadKey is a helper function that transforms raw key material into a properly-
 // typed key.
 //
-// Load returns a different type of key depending on the value of input:
+// LoadKey returns a different type depending on the value of material:
 //
 // If material is a []byte that contains a PEM-encoded PKIX key (e.g. "BEGIN
-// PUBLIC KEY"), Load parses it and returns a single public or private key
+// PUBLIC KEY"), LoadKey parses it and returns a single public or private key
 // of an algorithm-specific type.
 //
-// If material is any other []byte, Load returns it unmodified so that it can
+// If material is any other []byte, LoadKey returns it unmodified so that it can
 // be used as an HMAC key.
 //
-// Because Load is designed to be used at startup, it panics if the PEM block
+// Because LoadKey is designed to be used at startup, it panics if the PEM block
 // is malformed.
-func Load(material []byte) interface{} {
+func LoadKey(material []byte) interface{} {
 	if pemBlock.Match(material) {
 		parsed, err := parseKey(material)
 		if err != nil {

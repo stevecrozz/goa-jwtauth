@@ -35,10 +35,13 @@ var _ = Resource("Bottle", func() {
 })
 ```
 
-When you create your goa.Service at startup, install jwtauth middleware:
+When you create your goa.Service at startup, determine which keys to trust,
+then install the jwtauth middleware:
 
 ```go
-  middleware := jwtauth.New(app.NewJWTSecurity(), "super secret HMAC key")
+  secret := []byte("super secret HMAC key")
+  store := jwtauth.SimpleKeystore{Key: secret}
+  middleware := jwtauth.New(app.NewJWTSecurity(), store)
   app.UseJWTMiddleware(service, middleware)
 ```
 
