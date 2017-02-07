@@ -15,15 +15,15 @@ import (
 // keys, loading files as necessary to parse PEM-encoded public and private
 // keys.
 //
-// Load returns a different type of keystore depending on the type of keys.
+// Load returns a different type of keystore depending on the value of keys:.
 //
-// If keys is a []byte, trust a single HMAC key.
+// If keys is a []byte that contains a PEM-encoded PKIX key (i.e. "BEGIN
+// PUBLIC KEY"), parse it and trust a single public key; panic if the key
+// is malformed.
+//
+// It keys is any other []byte, trust a single HMAC key.
 //
 // If keys is an ecdsa or rsa key, trust a single public key.
-//
-// If keys is a string, load the specified filename and parse its contents as a
-// PEM-encoded PKIX key (i.e. "BEGIN PUBLIC KEY"). Trust the resulting ecdsa or
-// rsa key.
 //
 // If keys is a map[string]interface{}, the result is a set of named keys,
 // each of which may have any of the above supported types.
