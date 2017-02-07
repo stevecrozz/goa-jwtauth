@@ -5,6 +5,7 @@ import (
 	"crypto/rsa"
 	"fmt"
 	"net/http"
+	"strings"
 
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/goadesign/goa"
@@ -17,17 +18,27 @@ func parseToken(scheme *goa.JWTSecurity, store Keystore, exfn ExtractionFunc, re
 		return nil, err1
 	}
 
+	var alg string
+	var key interface{}
 	parsed, err := jwt.Parse(tok, func(token *jwt.Token) (interface{}, error) {
+		alg, _ = token.Header["alg"].(string)
 		iss, err := identifyIssuer(token)
 		if err != nil {
 			return nil, err
 		}
-		key := store.Get(iss)
+		key = store.Get(iss)
 		if key == nil {
 			return nil, ErrInvalidToken("untrusted", "issuer", iss)
 		}
 		return key, nil
 	})
+
+	// help clients with mystery errors caused by fast-and-loose key
+	// typing in crypto and dgrijalva/jwt-go
+	if err != nil && strings.HasPrefix(err.Error(), "key is of invalid type") {
+		err = fmt.Errorf("%s (%T for algorithm %s)", err.Error(), key, alg)
+		panic(err)
+	}
 
 	if ve, ok := err.(*jwt.ValidationError); ok {
 		err = ve.Inner

@@ -100,6 +100,19 @@ func makeToken(issuer, subject string, key interface{}, scopes ...string) string
 	return makeTokenWithTimestamps(issuer, subject, key, now, now, now.Add(time.Minute), scopes...)
 }
 
+func publicKey(key interface{}) interface{} {
+	switch tk := key.(type) {
+	case []byte:
+		return tk
+	case *rsa.PrivateKey:
+		return tk.Public()
+	case *ecdsa.PrivateKey:
+		return tk.Public()
+	default:
+		panic(fmt.Sprintf("Unsupported key type for tests: %T", key))
+	}
+}
+
 func makeTokenWithTimestamps(issuer, subject string, key interface{}, iat, nbf, exp time.Time, scopes ...string) string {
 	claims := jwtpkg.MapClaims{}
 	claims["iss"] = issuer
@@ -113,12 +126,12 @@ func makeTokenWithTimestamps(issuer, subject string, key interface{}, iat, nbf, 
 	switch key.(type) {
 	case []byte:
 		token = jwtpkg.NewWithClaims(jwtpkg.SigningMethodHS256, &claims)
-	case *rsa.PrivateKey:
+	case *rsa.PrivateKey, rsa.PrivateKey:
 		token = jwtpkg.NewWithClaims(jwtpkg.SigningMethodRS256, &claims)
-	case *ecdsa.PrivateKey:
+	case *ecdsa.PrivateKey, ecdsa.PrivateKey:
 		token = jwtpkg.NewWithClaims(jwtpkg.SigningMethodES256, &claims)
 	default:
-		panic("Unsupported key type for tests")
+		panic(fmt.Sprintf("Unsupported key type for tests: %T", key))
 	}
 
 	s, err := token.SignedString(key)

@@ -1,7 +1,6 @@
 package jwtauth
 
 import (
-	"crypto/ecdsa"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/asn1"
@@ -11,58 +10,31 @@ import (
 	"regexp"
 )
 
-// Load is a helper function that builds a keystore with trust in one or more
-// keys, loading files as necessary to parse PEM-encoded public and private
-// keys.
-//
-// Load returns a different type of keystore depending on the value of keys:.
-//
-// If keys is a []byte that contains a PEM-encoded PKIX key (i.e. "BEGIN
-// PUBLIC KEY"), parse it and trust a single public key; panic if the key
-// is malformed.
-//
-// It keys is any other []byte, trust a single HMAC key.
-//
-// If keys is an ecdsa or rsa key, trust a single public key.
-//
-// If keys is a map[string]interface{}, the result is a set of named keys,
-// each of which may have any of the above supported types.
-//
-// If keys is anything else, Load panics.
-func Load(keys interface{}) Keystore {
-	switch tk := keys.(type) {
-	case map[string]interface{}:
-		ks := &NamedKeystore{}
-		for k, v := range tk {
-			ks.Trust(k, loadKey(v))
-		}
-		return ks
-	default:
-		return &SimpleKeystore{Key: loadKey(tk)}
-	}
-}
-
 var pemBlock = regexp.MustCompile("^---+ *BEGIN")
 
-// loadKey is a helper function that returns a valid key type or panics.
-func loadKey(key interface{}) interface{} {
-	switch tk := key.(type) {
-	case *ecdsa.PrivateKey, *ecdsa.PublicKey, *rsa.PrivateKey, *rsa.PublicKey:
-		return tk
-	case []byte:
-		if pemBlock.Match(tk) {
-			// single PEM-encoded key
-			parsed, err := parseKey(tk)
-			if err != nil {
-				panic(err)
-			}
-			return loadKey(parsed)
-		} else {
-			// single HMAC key
-			return tk
+// Load is a helper function that transforms raw key material into a properly-
+// typed key.
+//
+// Load returns a different type of key depending on the value of input:
+//
+// If material is a []byte that contains a PEM-encoded PKIX key (e.g. "BEGIN
+// PUBLIC KEY"), Load parses it and returns a single public or private key
+// of an algorithm-specific type.
+//
+// If material is any other []byte, Load returns it unmodified so that it can
+// be used as an HMAC key.
+//
+// Because Load is designed to be used at startup, it panics if the PEM block
+// is malformed.
+func Load(material []byte) interface{} {
+	if pemBlock.Match(material) {
+		parsed, err := parseKey(material)
+		if err != nil {
+			panic(err)
 		}
-	default:
-		panic(fmt.Sprintf("unsupported key type %T; expected []byte, ecdsa/rsa key, or map[string]interface{}", key))
+		return parsed
+	} else {
+		return material
 	}
 }
 
@@ -73,7 +45,7 @@ func parseKey(pemBlock []byte) (interface{}, error) {
 	if block != nil {
 		switch block.Type {
 		case "RSA PUBLIC KEY": // PKCS1 RSA public key
-			key := rsa.PublicKey{new(big.Int), 0}
+			key := rsa.PublicKey{N: new(big.Int), E: 0}
 			_, err := asn1.Unmarshal(block.Bytes, &key)
 			return &key, err
 		case "PUBLIC KEY": // PKIX algorithm-neutral key

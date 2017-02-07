@@ -1,8 +1,6 @@
 package jwtauth_test
 
 import (
-	"crypto/ecdsa"
-	"crypto/rsa"
 	"net/http"
 	"net/http/httptest"
 	"time"
@@ -30,7 +28,7 @@ var _ = Describe("jwtauth middleware", func() {
 			}
 
 			scheme := &goa.JWTSecurity{In: goa.LocHeader, Name: "Authorization"}
-			middleware := jwtauth.New(scheme, jwtauth.Load(hmacKey1))
+			middleware := jwtauth.New(scheme, &jwtauth.SimpleKeystore{hmacKey1})
 			stack = middleware(stack)
 		})
 
@@ -58,7 +56,7 @@ var _ = Describe("jwtauth middleware", func() {
 
 		It("converts issuers to string", func() {
 			scheme := &goa.JWTSecurity{In: goa.LocHeader, Name: "Authorization"}
-			middleware := jwtauth.New(scheme, jwtauth.Load(hmacKey1))
+			middleware := jwtauth.New(scheme, &jwtauth.SimpleKeystore{hmacKey1})
 			claims := jwtpkg.MapClaims{}
 			claims["iss"] = 7
 			token := jwtpkg.NewWithClaims(jwtpkg.SigningMethodHS256, &claims)
@@ -107,19 +105,7 @@ func testShared(trusted, untrusted interface{}) {
 			return nil
 		}
 
-		var key interface{}
-		switch tk := trusted.(type) {
-		case []byte:
-			key = trusted
-		case *rsa.PrivateKey:
-			key = &tk.PublicKey
-		case *ecdsa.PrivateKey:
-			key = &tk.PublicKey
-		default:
-			panic("Unsupported key type for tests")
-		}
-
-		middleware = jwtauth.New(scheme, jwtauth.Load(key))
+		middleware = jwtauth.New(scheme, &jwtauth.SimpleKeystore{publicKey(trusted)})
 	})
 
 	AfterEach(func() {
