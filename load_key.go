@@ -48,8 +48,12 @@ func parseKey(pemBlock []byte) (interface{}, error) {
 			key := rsa.PublicKey{N: new(big.Int), E: 0}
 			_, err := asn1.Unmarshal(block.Bytes, &key)
 			return &key, err
-		case "PUBLIC KEY": // PKIX algorithm-neutral key
+		case "PUBLIC KEY": // PKIX algorithm-neutral public key
 			return x509.ParsePKIXPublicKey(block.Bytes)
+		case "RSA PRIVATE KEY": // PKCS1 RSA private key
+			return x509.ParsePKCS1PrivateKey(block.Bytes)
+		case "EC PRIVATE KEY":
+			return x509.ParseECPrivateKey(block.Bytes)
 		default:
 			return nil, fmt.Errorf("Unsupported PEM block type: %s", block.Type)
 		}
