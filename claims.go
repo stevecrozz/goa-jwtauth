@@ -2,6 +2,7 @@ package jwtauth
 
 import (
 	"fmt"
+	"regexp"
 	"strconv"
 	"time"
 )
@@ -54,6 +55,31 @@ func (c Claims) Strings(name string) []string {
 	default:
 		return []string{stringify(ts)}
 	}
+}
+
+var trueBool = regexp.MustCompile("^([Tt]r?u?e|[1-9][0-9]+)$")
+
+// Bool returns the named claim as a boolean, converting from other types
+// as necessary. If the claim is absent or cannot be converted to a boolean,
+// Bool returns false.
+func (c Claims) Bool(name string) bool {
+	s := c[name]
+
+	switch ts := s.(type) {
+	case bool:
+		return ts
+	case int64:
+	case int32:
+	case uint64:
+	case uint32:
+	case float64:
+	case float32:
+		return ts != 0
+	case string:
+		return trueBool.MatchString(ts)
+	}
+
+	return false
 }
 
 // Int returns the named claim as an integer, converting from other types as
