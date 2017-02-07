@@ -30,7 +30,7 @@ var _ = Describe("jwtauth middleware", func() {
 			}
 
 			scheme := &goa.JWTSecurity{In: goa.LocHeader, Name: "Authorization"}
-			middleware := jwtauth.New(scheme, hmacKey1)
+			middleware := jwtauth.New(scheme, jwtauth.Load(hmacKey1))
 			stack = middleware(stack)
 		})
 
@@ -58,7 +58,7 @@ var _ = Describe("jwtauth middleware", func() {
 
 		It("converts issuers to string", func() {
 			scheme := &goa.JWTSecurity{In: goa.LocHeader, Name: "Authorization"}
-			middleware := jwtauth.New(scheme, hmacKey1)
+			middleware := jwtauth.New(scheme, jwtauth.Load(hmacKey1))
 			claims := jwtpkg.MapClaims{}
 			claims["iss"] = 7
 			token := jwtpkg.NewWithClaims(jwtpkg.SigningMethodHS256, &claims)
@@ -119,7 +119,7 @@ func testShared(trusted, untrusted interface{}) {
 			panic("Unsupported key type for tests")
 		}
 
-		middleware = jwtauth.New(scheme, key)
+		middleware = jwtauth.New(scheme, jwtauth.Load(key))
 	})
 
 	AfterEach(func() {

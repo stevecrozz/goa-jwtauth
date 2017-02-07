@@ -7,7 +7,7 @@ const testKey = "https://github.com/rightscale/goa-jwtauth#test"
 // TestMiddleware returns a middleware that uses a static HMAC key and is
 // suitable for unit tests.
 func TestMiddleware(scheme *goa.JWTSecurity) goa.Middleware {
-	return New(scheme, testKey)
+	return New(scheme, &SimpleKeystore{Key: []byte(testKey)})
 }
 
 // TestToken creates a JWT with the specified claims and signs it using

@@ -25,7 +25,7 @@ var _ = Describe("DefaultAuthorization()", func() {
 		}
 
 		scheme := &goa.JWTSecurity{In: goa.LocHeader, Name: "Authorization"}
-		middleware := jwt.New(scheme, hmacKey1)
+		middleware := jwt.New(scheme, jwt.Load(hmacKey1))
 		stack = middleware(stack)
 	})
 

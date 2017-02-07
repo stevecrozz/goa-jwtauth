@@ -1,7 +1,6 @@
 package jwtauth
 
 import (
-	"crypto"
 	"fmt"
 	"net/http"
 
@@ -12,21 +11,10 @@ import (
 
 // New creates a jwtauth middleware with the specified security scheme,
 // keystore, and options.
-func New(scheme *goa.JWTSecurity, keystore interface{}, options ...Option) goa.Middleware {
+func New(scheme *goa.JWTSecurity, store Keystore, options ...Option) goa.Middleware {
 	oo := &mwopts{}
 	oo.Scheme = scheme
-	switch kst := keystore.(type) {
-	case []byte:
-		oo.Keystore = &SimpleKeystore{kst}
-	case string:
-		oo.Keystore = &SimpleKeystore{[]byte(kst)}
-	case Keystore:
-		oo.Keystore = kst
-	case crypto.PublicKey:
-		oo.Keystore = &SimpleKeystore{kst}
-	default:
-		panic(fmt.Sprintf("Unsupported keystore type %T", keystore))
-	}
+	oo.Keystore = store
 	oo.Extraction = DefaultExtraction
 	oo.Authorization = DefaultAuthorization
 
