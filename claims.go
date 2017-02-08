@@ -68,18 +68,23 @@ func (c Claims) Bool(name string) bool {
 	switch ts := s.(type) {
 	case bool:
 		return ts
+	case int:
+		return ts > 0
+	case uint:
+		return ts > 0
 	case int64:
-	case int32:
+		return ts > 0
 	case uint64:
-	case uint32:
+		return ts > 0
 	case float64:
+		return ts > 0
 	case float32:
-		return ts != 0
+		return ts > 0
 	case string:
 		return trueBool.MatchString(ts)
+	default:
+		return false
 	}
-
-	return false
 }
 
 // Int returns the named claim as an integer, converting from other types as
@@ -88,11 +93,20 @@ func (c Claims) Bool(name string) bool {
 func (c Claims) Int(name string) int64 {
 	s := c[name]
 	switch ts := s.(type) {
-	case int64:
-	case int32:
 	case uint64:
+		return int64(ts)
 	case uint32:
+		return int64(ts)
+	case uint:
+		return int64(ts)
+	case int64:
+		return int64(ts)
+	case int32:
+		return int64(ts)
+	case int:
+		return int64(ts)
 	case float64:
+		return int64(ts)
 	case float32:
 		return int64(ts)
 	case string:
@@ -108,8 +122,32 @@ func (c Claims) Int(name string) int64 {
 // Time returns the named claim as a Time in the Unix epoch. If the claim
 // is absent or cannot be converted to an integer, it returns 0.
 func (c Claims) Time(name string) time.Time {
-	i := c.Int(name)
-	return time.Unix(i, 0)
+	switch ts := c[name].(type) {
+	case uint64:
+		return time.Unix(int64(ts), 0).UTC()
+	case uint32:
+		return time.Unix(int64(ts), 0).UTC()
+	case uint:
+		return time.Unix(int64(ts), 0).UTC()
+	case int64:
+		return time.Unix(ts, 0).UTC()
+	case int32:
+		return time.Unix(int64(ts), 0).UTC()
+	case int:
+		return time.Unix(int64(ts), 0).UTC()
+	case float64:
+		return time.Unix(int64(ts), 0).UTC()
+	case float32:
+		return time.Unix(int64(ts), 0).UTC()
+	case string:
+		t, err := time.Parse(time.RFC822, ts)
+		if err == nil {
+			return t.UTC()
+		}
+		return time.Unix(0, 0).UTC()
+	default:
+		return time.Unix(0, 0).UTC()
+	}
 }
 
 // Issuer returns the value of the standard JWT "iss" claim, converting to
@@ -131,10 +169,10 @@ func (c Claims) IssuedAt() time.Time {
 
 // NotBefore returns time at which the claims were issued.
 func (c Claims) NotBefore() time.Time {
-	return c.Time("iat")
+	return c.Time("nbf")
 }
 
 // ExpiresAt returns time at which the claims were issued.
 func (c Claims) ExpiresAt() time.Time {
-	return c.Time("iat")
+	return c.Time("exp")
 }

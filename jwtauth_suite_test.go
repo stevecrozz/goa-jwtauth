@@ -9,9 +9,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/goadesign/goa"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"
+	jwtauth "github.com/rightscale/goa-jwtauth"
 
 	"testing"
 
@@ -23,11 +25,20 @@ func TestJWTSuite(t *testing.T) {
 	RunSpecs(t, "goa-jwtauth")
 }
 
+type bogusClaims struct{}
+
+func (bc *bogusClaims) Valid() error {
+	return nil
+}
+
+var commonScheme = &goa.JWTSecurity{In: goa.LocHeader, Name: "Authorization"}
+
 var hmacKey1 = []byte("I like tacos")
 
 var hmacKey2 = []byte("I hate oysters")
 
-var rsaKey1, _ = jwtpkg.ParseRSAPrivateKeyFromPEM([]byte(`-----BEGIN RSA PRIVATE KEY-----
+var rsaKey1Pem = []byte(`
+-----BEGIN RSA PRIVATE KEY-----
 MIIEogIBAAKCAQEArZIJcPQd7aSGb80wgFpy5SVjzzsGpfIysZ30SdWlTcWMVbAT
 XmsDNgw98TzIeoyikSbSHEeORbKWKS2clgNsdLjYKv3XLTBaXfLcU3x9mhnk/kUL
 N/AQgyvsRGynPris2oVzGSib7uOZK/9+u+QAKIrp7prcmMmnwvdcjFXjwzx83RTF
@@ -53,9 +64,13 @@ g8jc3+O5uoYuUnfbnRJyOsPtb4VSLgXz6deUmI9fugmU1l55tH93jMT4ijyzg2BJ
 grGxAoGAWX24Yx9qoasqEQ2rgdTsgylwL28UczKQ5KNHt2PcEfPNw6/GpfK7YmlU
 Heef2umEzb1K2ZK95wlMbF8zpNDWBf4PkxgfW+JEE+pO1kb5KXysBymymyXhGHAP
 CwH9XHqbjVlsD358AbPeKqLgTCaGo9JgsEZDBpESmBDnIPUahMc=
------END RSA PRIVATE KEY-----`))
+-----END RSA PRIVATE KEY-----
+`)
 
-var rsaKey2, _ = jwtpkg.ParseRSAPrivateKeyFromPEM([]byte(`-----BEGIN RSA PRIVATE KEY-----
+var rsaKey1, _ = jwtpkg.ParseRSAPrivateKeyFromPEM([]byte(rsaKey1Pem))
+
+var rsaKey2Pem = []byte(`
+-----BEGIN RSA PRIVATE KEY-----
 MIIEowIBAAKCAQEA4jr/DGbPt0UDGvu6Xo2LV0F6Wf8OnyxF2IFPdG5B4X0YS3DC
 9SF3clbbBivDVa2bEXppyj+eLEKlfohCWXTrJK0LxTEcneuDkF4re+BdP3q9cKRz
 FtI/ZVhVnD7+PS1wps7OiTM0iOaIDo9+uFrC6zBTRAiPyrdwh1ApttLdoD6i5D9D
@@ -81,19 +96,54 @@ zsFCZlC0jytRNaqoDGQzANCuDgH/bovTlTKyOzTDgwSORwP0F4zOu4+AxZu+Juw4
 3nextQKBgEAGLuChkztZCVt0W2D8wJYFR7XjezcbsfpoXx9H8htk6u4STu9TwB76
 DxoYj3qiTV2kRRBQQZRAli1TbDOnJuqFMnRL0aPsqebuW2sqY9Hx9G6TxokN8Nc6
 RlTE+CbPcjBgAx+AANL/X2KYoXLAjOrYY5kQD8Qbt8Wkme7m6hiP
------END RSA PRIVATE KEY-----`))
+-----END RSA PRIVATE KEY-----
+`)
 
-var ecKey1, _ = jwtpkg.ParseECPrivateKeyFromPEM([]byte(`-----BEGIN EC PRIVATE KEY-----
+var rsaKey2, _ = jwtpkg.ParseRSAPrivateKeyFromPEM([]byte(rsaKey2Pem))
+
+var ecKey1Pem = []byte(`
+-----BEGIN EC PRIVATE KEY-----
 MHcCAQEEIM4zAVusfF+Xl4Z5a5LaspGk+OIwGQweubphSqC1R9+VoAoGCCqGSM49
 AwEHoUQDQgAE3tWSknhfssUVytNbPz3TB7giFfxKtHsFW27Yls+Ohfuui9NW4eEk
 fLOxYkTI9tyoKfh9Dan5kJFA7ZYEwZ0zMQ==
------END EC PRIVATE KEY-----`))
+-----END EC PRIVATE KEY-----
+`)
 
-var ecKey2, _ = jwtpkg.ParseECPrivateKeyFromPEM([]byte(`-----BEGIN EC PRIVATE KEY-----
+var ecKey1, _ = jwtpkg.ParseECPrivateKeyFromPEM([]byte(ecKey1Pem))
+
+var ecKey2Pem = []byte(`
+-----BEGIN EC PRIVATE KEY-----
 MHcCAQEEIKQ7EyFGaYMuFpMLnqK+mBnT9CrWOqzVxsF8wBlGrTq/oAoGCCqGSM49
 AwEHoUQDQgAE8IX3mOtLvBpvrylaRjFpadqGrirXh9dkjJfM/t1dnLu5qPhybMIY
 tEr3Xs8vYp2wyaSTVKsyj9y+t344T5Bhdw==
------END EC PRIVATE KEY-----`))
+-----END EC PRIVATE KEY-----
+`)
+
+var ecKey2, _ = jwtpkg.ParseECPrivateKeyFromPEM([]byte(ecKey2Pem))
+
+var rsaPKCSPubPem = []byte(`
+-----BEGIN RSA PUBLIC KEY-----
+MIGJAoGBAO6NndZW3iD45Qi5VSqLkgr7k/Ya8BCL3d8wN7sexvcrgR6u5VxljRd5
+zkH/JVK1IV7ik7h/LsI/CpDDwAfGQWQ9HCF1qozIinEfFCsdURt25L0rk8Uax11n
+ugUc4XgnaUV55WV6CROoZDX/sKTdW3/BbVeSgk0pHfM2jzYMmKeTAgMBAAE=
+-----END RSA PUBLIC KEY-----
+`)
+
+var rsaPKIXPubPem = []byte(`
+-----BEGIN PUBLIC KEY-----
+MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDKjjrYD61f02XciwnAKjcHT0Wr
+ywf7SnM9PHBZ/2+oKwhUDYzHxl2OLn7EGJ0FSPtsJIr5BGay+9oA7W+OpfDqxDUU
+Rz7EiDzW69onM3GVXMrS/pQhKpJmFHmJsSXGE26ahfegowx6ChFLZrY01y0lBxkQ
+tm2ouoqEVhJbO0QosQIDAQAB
+-----END PUBLIC KEY-----
+`)
+
+var ecPKIXPubPem = []byte(`
+-----BEGIN PUBLIC KEY-----
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEOfy4eFmaXiqvXh9ay0J8CB0BzqI7
+XdeFVfxnFhx8YOLMCuXyEX2Wtc+av9jlWaV7htgnuIcA0frqM822+2EYaQ==
+-----END PUBLIC KEY-----
+`)
 
 func makeToken(issuer, subject string, key interface{}, scopes ...string) string {
 	now := time.Now()
@@ -114,7 +164,7 @@ func publicKey(key interface{}) interface{} {
 }
 
 func makeTokenWithTimestamps(issuer, subject string, key interface{}, iat, nbf, exp time.Time, scopes ...string) string {
-	claims := jwtpkg.MapClaims{}
+	claims := jwtauth.Claims{}
 	claims["iss"] = issuer
 	claims["iat"] = iat.Unix()
 	claims["nbf"] = nbf.Unix()
@@ -122,24 +172,11 @@ func makeTokenWithTimestamps(issuer, subject string, key interface{}, iat, nbf, 
 	claims["sub"] = subject
 	claims["scopes"] = scopes
 
-	var token *jwtpkg.Token
-	switch key.(type) {
-	case []byte:
-		token = jwtpkg.NewWithClaims(jwtpkg.SigningMethodHS256, &claims)
-	case *rsa.PrivateKey, rsa.PrivateKey:
-		token = jwtpkg.NewWithClaims(jwtpkg.SigningMethodRS256, &claims)
-	case *ecdsa.PrivateKey, ecdsa.PrivateKey:
-		token = jwtpkg.NewWithClaims(jwtpkg.SigningMethodES256, &claims)
-	default:
-		panic(fmt.Sprintf("Unsupported key type for tests: %T", key))
-	}
-
-	s, err := token.SignedString(key)
+	token, err := jwtauth.NewToken(key, claims)
 	if err != nil {
 		panic(err)
 	}
-
-	return s
+	return token
 }
 
 func modifyToken(token string) string {

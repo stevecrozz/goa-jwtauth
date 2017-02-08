@@ -3,19 +3,19 @@ package jwtauth_test
 import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	jwt "github.com/rightscale/goa-jwtauth"
+	"github.com/rightscale/goa-jwtauth"
 )
 
 var _ = Describe("NamedKeystore", func() {
-	var store *jwt.NamedKeystore
+	var store *jwtauth.NamedKeystore
 
 	BeforeEach(func() {
-		store = &jwt.NamedKeystore{}
+		store = &jwtauth.NamedKeystore{}
 		Ω(store.Trust("moo", hmacKey1)).ShouldNot(HaveOccurred())
 	})
 
 	It("initializes itself", func() {
-		zero := &jwt.NamedKeystore{}
+		zero := &jwtauth.NamedKeystore{}
 		Ω(zero.Get("moo")).Should(BeNil())
 		Expect(func() {
 			zero.RevokeTrust("moo")

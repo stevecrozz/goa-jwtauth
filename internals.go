@@ -52,13 +52,7 @@ func parseToken(scheme *goa.JWTSecurity, store Keystore, exfn ExtractionFunc, re
 
 // identifyIssuer inspects a JWT's claims to determine its issuer.
 func identifyIssuer(token *jwt.Token) (string, error) {
-	if token == nil || token.Claims == nil {
-		return "", nil
-	}
-
 	switch claims := token.Claims.(type) {
-	case *jwt.StandardClaims:
-		return claims.Issuer, nil
 	case jwt.MapClaims:
 		var issuer string
 		if claims != nil {
@@ -71,6 +65,8 @@ func identifyIssuer(token *jwt.Token) (string, error) {
 				issuer = it
 			case fmt.Stringer:
 				issuer = it.String()
+			default:
+				issuer = fmt.Sprintf("%v", it)
 			}
 		}
 		return issuer, nil

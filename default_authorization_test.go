@@ -9,7 +9,7 @@ import (
 	"github.com/goadesign/goa"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	jwt "github.com/rightscale/goa-jwtauth"
+	"github.com/rightscale/goa-jwtauth"
 )
 
 var _ = Describe("DefaultAuthorization()", func() {
@@ -24,8 +24,7 @@ var _ = Describe("DefaultAuthorization()", func() {
 			return nil
 		}
 
-		scheme := &goa.JWTSecurity{In: goa.LocHeader, Name: "Authorization"}
-		middleware := jwt.New(scheme, &jwt.SimpleKeystore{hmacKey1})
+		middleware := jwtauth.New(commonScheme, &jwtauth.SimpleKeystore{hmacKey1})
 		stack = middleware(stack)
 	})
 

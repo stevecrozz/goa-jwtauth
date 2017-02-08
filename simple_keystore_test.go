@@ -3,11 +3,11 @@ package jwtauth_test
 import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	jwt "github.com/rightscale/goa-jwtauth"
+	"github.com/rightscale/goa-jwtauth"
 )
 
 var _ = Describe("SimpleKeystore", func() {
-	store := &jwt.SimpleKeystore{Key: hmacKey1}
+	store := &jwtauth.SimpleKeystore{Key: hmacKey1}
 
 	Context("Trust()", func() {
 		It("accepts the single key", func() {

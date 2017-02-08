@@ -32,19 +32,11 @@ func New(scheme *goa.JWTSecurity, store Keystore, options ...Option) goa.Middlew
 			claims := Claims{}
 			if token != nil {
 				switch tc := token.Claims.(type) {
-				case *jwt.StandardClaims:
-					claims["aud"] = tc.Audience
-					claims["id"] = tc.Id
-					claims["iss"] = tc.Issuer
-					claims["sub"] = tc.Subject
-					claims["iat"] = tc.IssuedAt
-					claims["nbf"] = tc.NotBefore
-					claims["exp"] = tc.ExpiresAt
 				case jwt.MapClaims:
 					claims = Claims(tc)
 				default:
-					typ := fmt.Sprintf("%T", tc)
-					return ErrInvalidToken("unsupported jwt.Claims", "type", typ)
+					// this is impossible; jwt only produces MapClaims when parsing
+					panic(fmt.Sprintf("unsupported jwt.Claims type %T", tc))
 				}
 			}
 
